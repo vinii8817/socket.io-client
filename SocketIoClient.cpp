@@ -1,5 +1,7 @@
 #include <SocketIoClient.h>
 
+bool isCONNECTED = 0;
+
 const String getEventName(const String msg) {
 	return msg.substring(4, msg.indexOf("\"",4));
 }
@@ -20,9 +22,11 @@ void SocketIoClient::webSocketEvent(WStype_t type, uint8_t * payload, size_t len
 	switch(type) {
 		case WStype_DISCONNECTED:
 			SOCKETIOCLIENT_DEBUG("[SIoC] Disconnected!\n");
+			isCONNECTED = 0;
 			break;
 		case WStype_CONNECTED:
 			SOCKETIOCLIENT_DEBUG("[SIoC] Connected to url: %s\n",  payload);
+			isCONNECTED = 1;
 			break;
 		case WStype_TEXT:
 			msg = String((char*)payload);
@@ -44,7 +48,7 @@ void SocketIoClient::webSocketEvent(WStype_t type, uint8_t * payload, size_t len
 }
 
 void SocketIoClient::beginSSL(const char* host, const int port, const char* url, const char* fingerprint) {
-	_webSocket.beginSSL(host, port, url, fingerprint); 
+	_webSocket.beginSSL(host, port, url, fingerprint);
     initialize();
 }
 
@@ -80,16 +84,20 @@ void SocketIoClient::on(const char* event, std::function<void (const char * payl
 }
 
 void SocketIoClient::emit(const char* event, const char * payload) {
-	String msg = String("42[\"");
-	msg += event;
-	msg += "\"";
-	if(payload) {
-		msg += ",";
-		msg += payload;
+	if(isCONNECTED){
+		String msg = String("42[\"");
+		msg += event;
+		msg += "\"";
+		if(payload) {
+			msg += ",";
+			msg += payload;
+		}
+		msg += "]";
+		SOCKETIOCLIENT_DEBUG("[SIoC] add packet %s\n", msg.c_str());
+		_packets.push_back(msg);
+	}else{
+		SOCKETIOCLIENT_DEBUG("[SIoC] impossible emit, desconnected!!!\n");
 	}
-	msg += "]";
-	SOCKETIOCLIENT_DEBUG("[SIoC] add packet %s\n", msg.c_str());
-	_packets.push_back(msg);
 }
 
 void SocketIoClient::trigger(const char* event, const char * payload, size_t length) {
@@ -100,4 +108,11 @@ void SocketIoClient::trigger(const char* event, const char * payload, size_t len
 	} else {
 		SOCKETIOCLIENT_DEBUG("[SIoC] event %s not found. %d events available\n", event, _events.size());
 	}
+}
+
+bool SocketIoClient::status(){
+		if(isCONNECTED)
+			return 1;
+		else
+			return 0;
 }
